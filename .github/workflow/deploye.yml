@@ -1,0 +1,55 @@
+name: Deploy HTML to AWS S3
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - index.html
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-s3-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Validate and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate index.html
+        shell: bash
+        run: |
+          if [ ! -s index.html ]; then
+            echo "::error::index.html is missing or empty"
+            exit 1
+          fi
+
+          echo "index.html exists and is not empty."
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload index.html to S3
+        env:
+          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          aws s3 cp index.html "s3://${S3_BUCKET_NAME}/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "no-cache"
+
+      - name: Deployment completed
+        run: echo "Website uploaded successfully."
